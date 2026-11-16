@@ -2,10 +2,18 @@ import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { FL, STOPS } from "../data/flavors.js";
 
-export default function Scene({ flavor }) {
+export default function Scene({
+  flavor,
+  deliveryId,
+  skipDeliveryId,
+  onDeliveryStageChange,
+  onDeliveryComplete,
+}) {
   const canvasRef = useRef(null);
   const toppingsApiRef = useRef(null);
+  const callbacksRef = useRef({});
   const [error, setError] = useState("");
+  callbacksRef.current = { onDeliveryStageChange, onDeliveryComplete };
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -290,6 +298,93 @@ export default function Scene({ flavor }) {
     toppingsApiRef.current = buildToppings;
     buildToppings(0, FL[0].c);
 
+    const oven = new THREE.Group();
+    oven.visible = false;
+    scene.add(oven);
+    const ovenBodyMaterial = material(0x342016, 0.78);
+    const ovenTrimMaterial = material(0x9b5430, 0.7);
+    const ovenBody = new THREE.Mesh(
+      new THREE.BoxGeometry(1.7, 1.22, 0.82),
+      ovenBodyMaterial,
+    );
+    ovenBody.position.y = -0.12;
+    oven.add(ovenBody);
+    const ovenTop = new THREE.Mesh(
+      new THREE.BoxGeometry(1.78, 0.12, 0.9),
+      ovenTrimMaterial,
+    );
+    ovenTop.position.y = 0.52;
+    oven.add(ovenTop);
+    const ovenChimney = new THREE.Mesh(
+      new THREE.BoxGeometry(0.3, 0.52, 0.32),
+      ovenBodyMaterial,
+    );
+    ovenChimney.position.set(-0.49, 0.82, -0.1);
+    oven.add(ovenChimney);
+    const ovenMouth = new THREE.Mesh(
+      new THREE.CircleGeometry(0.43, 36),
+      new THREE.MeshBasicMaterial({ color: 0x170b07 }),
+    );
+    ovenMouth.position.set(0, 0.01, 0.418);
+    oven.add(ovenMouth);
+    const ovenFireMaterial = new THREE.MeshBasicMaterial({
+      color: 0xff5418,
+      transparent: true,
+      opacity: 0.75,
+    });
+    const ovenFire = new THREE.Mesh(
+      new THREE.CircleGeometry(0.31, 32),
+      ovenFireMaterial,
+    );
+    ovenFire.position.set(0, -0.03, 0.425);
+    oven.add(ovenFire);
+    const ovenDoor = new THREE.Mesh(
+      new THREE.TorusGeometry(0.46, 0.075, 12, 40),
+      ovenTrimMaterial,
+    );
+    ovenDoor.position.set(0, 0.01, 0.45);
+    oven.add(ovenDoor);
+    const ovenLight = new THREE.PointLight(0xff5b20, 0, 3.5);
+    ovenLight.position.set(0, -0.02, 0.8);
+    oven.add(ovenLight);
+
+    const scooter = new THREE.Group();
+    scooter.visible = false;
+    scene.add(scooter);
+    const rubberMaterial = material(0x171414, 0.82);
+    const scooterBodyMaterial = material(0xe9e0d4, 0.44);
+    const scooterOrangeMaterial = material(0xff7a1a, 0.48);
+    const wheelGeometry = new THREE.TorusGeometry(0.23, 0.065, 12, 28);
+    [-0.62, 0.61].forEach((x) => {
+      const wheel = new THREE.Mesh(wheelGeometry, rubberMaterial);
+      wheel.position.set(x, -0.12, 0.04);
+      scooter.add(wheel);
+      const hub = new THREE.Mesh(
+        new THREE.CircleGeometry(0.105, 20),
+        scooterBodyMaterial,
+      );
+      hub.position.set(x, -0.12, 0.11);
+      scooter.add(hub);
+    });
+    const addScooterPart = (geometry, partMaterial, x, y, z = 0) => {
+      const part = new THREE.Mesh(geometry, partMaterial);
+      part.position.set(x, y, z);
+      scooter.add(part);
+      return part;
+    };
+    addScooterPart(new THREE.BoxGeometry(0.95, 0.12, 0.28), scooterOrangeMaterial, 0, 0.02);
+    addScooterPart(new THREE.BoxGeometry(0.27, 0.48, 0.24), scooterBodyMaterial, 0.31, 0.25);
+    addScooterPart(new THREE.BoxGeometry(0.38, 0.12, 0.3), rubberMaterial, 0.02, 0.38);
+    addScooterPart(new THREE.BoxGeometry(0.5, 0.4, 0.4), scooterOrangeMaterial, -0.48, 0.5);
+    addScooterPart(new THREE.BoxGeometry(0.55, 0.06, 0.06), rubberMaterial, 0.47, 0.55);
+    addScooterPart(new THREE.BoxGeometry(0.08, 0.31, 0.08), scooterBodyMaterial, 0.39, 0.39);
+    const deliveryMark = new THREE.Mesh(
+      new THREE.CircleGeometry(0.105, 24),
+      new THREE.MeshBasicMaterial({ color: 0x1a0d02 }),
+    );
+    deliveryMark.position.set(-0.48, 0.5, 0.205);
+    scooter.add(deliveryMark);
+
     const particleCount = 90;
     const particlePositions = new Float32Array(particleCount * 3);
     for (let i = 0; i < particleCount * 3; i += 1) {
@@ -316,6 +411,58 @@ export default function Scene({ flavor }) {
     let sectionTops = [];
     let previousScrollY = window.scrollY;
     let scrollVelocity = 0;
+    let deliveryTimeline = null;
+    let deliveryCompletionTimer;
+    let lastDeliveryPhase = null;
+    let worldHalfWidth = 3;
+    let deliveryScale = 1;
+    const notifyDeliveryPhase = (phase) => {
+      if (lastDeliveryPhase === phase) return;
+      lastDeliveryPhase = phase;
+      callbacksRef.current.onDeliveryStageChange?.(phase);
+    };
+    const restoreSceneAfterDelivery = () => {
+      deliveryTimeline = null;
+      oven.visible = false;
+      scooter.visible = false;
+      pizza.visible = true;
+    };
+    const finishDelivery = () => {
+      window.clearTimeout(deliveryCompletionTimer);
+      restoreSceneAfterDelivery();
+      notifyDeliveryPhase("delivered");
+      deliveryCompletionTimer = window.setTimeout(() => {
+        callbacksRef.current.onDeliveryComplete?.();
+      }, 1100);
+    };
+    const startDelivery = () => {
+      window.clearTimeout(deliveryCompletionTimer);
+      lastDeliveryPhase = null;
+      const prefersReducedMotion = window.matchMedia(
+        "(prefers-reduced-motion: reduce)",
+      ).matches;
+      if (prefersReducedMotion) {
+        finishDelivery();
+        return;
+      }
+      deliveryTimeline = {
+        startedAt: performance.now(),
+        start: {
+          x: current.x,
+          y: current.y,
+          rotationX: current.rotationX,
+          scale: current.scale,
+        },
+      };
+      oven.visible = true;
+      scooter.visible = false;
+      pizza.visible = true;
+      notifyDeliveryPhase("to-oven");
+    };
+    const skipDelivery = () => {
+      window.clearTimeout(deliveryCompletionTimer);
+      finishDelivery();
+    };
     const onPointerMove = (event) => {
       mouseX = event.clientX / window.innerWidth - 0.5;
       mouseY = event.clientY / window.innerHeight - 0.5;
@@ -326,6 +473,12 @@ export default function Scene({ flavor }) {
       renderer.setSize(width, height, false);
       camera.aspect = width / height;
       camera.updateProjectionMatrix();
+      worldHalfWidth =
+        camera.aspect * camera.position.z * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
+      deliveryScale = Math.min(1, camera.aspect / 0.85);
+      oven.position.set(Math.min(worldHalfWidth * 0.45, 2.1), 0.16, -0.25);
+      oven.scale.setScalar(deliveryScale);
+      scooter.scale.setScalar(Math.min(1, camera.aspect / 1.1));
       sectionTops = Array.from(document.querySelectorAll("section"), (section) =>
         section.offsetTop,
       );
@@ -337,6 +490,12 @@ export default function Scene({ flavor }) {
 
     let animationFrame;
     const current = { x: 1.9, y: 0, rotationX: 1.1, scale: 1 };
+    const api = {
+      setToppings: buildToppings,
+      startDelivery,
+      skipDelivery,
+    };
+    toppingsApiRef.current = api;
     const animate = () => {
       animationFrame = window.requestAnimationFrame(animate);
       const time = performance.now() / 1000;
@@ -382,6 +541,93 @@ export default function Scene({ flavor }) {
         current.rotationX = 1.1;
         current.scale = 1;
       }
+      if (deliveryTimeline) {
+        const elapsed = (performance.now() - deliveryTimeline.startedAt) / 1000;
+        const ease = (progress) => {
+          const value = Math.max(0, Math.min(1, progress));
+          return value * value * (3 - 2 * value);
+        };
+        const ovenX = oven.position.x;
+        const pickupStartX = -worldHalfWidth - 1.6;
+        const pickupEndX = ovenX - 0.55;
+
+        if (elapsed < 1.55) {
+          const progress = ease(elapsed / 1.55);
+          notifyDeliveryPhase("to-oven");
+          pizza.visible = true;
+          oven.visible = true;
+          scooter.visible = false;
+          pizza.position.set(
+            deliveryTimeline.start.x +
+              (ovenX - deliveryTimeline.start.x) * progress,
+            deliveryTimeline.start.y +
+              (oven.position.y - deliveryTimeline.start.y) * progress,
+            progress * 0.58,
+          );
+          pizza.rotation.set(
+            deliveryTimeline.start.rotationX +
+              (0.25 - deliveryTimeline.start.rotationX) * progress,
+            pizza.rotation.y,
+            pizza.rotation.z,
+          );
+          pizza.scale.setScalar(
+            deliveryTimeline.start.scale +
+              (0.28 * deliveryScale - deliveryTimeline.start.scale) * progress,
+          );
+        } else if (elapsed < 3.75) {
+          notifyDeliveryPhase("baking");
+          pizza.visible = false;
+          oven.visible = true;
+          scooter.visible = false;
+          ovenFireMaterial.opacity = 0.63 + Math.sin(time * 8) * 0.2;
+          ovenLight.intensity = 2.4 + (Math.sin(time * 8) + 1) * 1.2;
+        } else if (elapsed < 4.65) {
+          notifyDeliveryPhase("pickup");
+          pizza.visible = false;
+          oven.visible = true;
+          scooter.visible = true;
+          scooter.position.set(
+            pickupStartX + (pickupEndX - pickupStartX) * ease((elapsed - 3.75) / 0.9),
+            -0.33,
+            0.25,
+          );
+          ovenFireMaterial.opacity = 0.55;
+          ovenLight.intensity = 1.7;
+        } else if (elapsed < 7.05) {
+          notifyDeliveryPhase("delivering");
+          oven.visible = false;
+          scooter.visible = true;
+          pizza.visible = true;
+          const progress = ease((elapsed - 4.65) / 2.4);
+          scooter.position.set(
+            pickupEndX + (worldHalfWidth + 2.1 - pickupEndX) * progress,
+            -0.33 + Math.sin(progress * Math.PI) * 0.06,
+            0.25,
+          );
+          pizza.position.set(
+            scooter.position.x - 0.48 * scooter.scale.x,
+            scooter.position.y + 0.89 * scooter.scale.y,
+            0.82,
+          );
+          pizza.rotation.set(1.1, pizza.rotation.y, 0);
+          pizza.scale.setScalar(0.27 * scooter.scale.x);
+        } else if (elapsed < 8.2) {
+          notifyDeliveryPhase("delivered");
+          pizza.visible = false;
+          oven.visible = false;
+          scooter.visible = false;
+        } else {
+          restoreSceneAfterDelivery();
+          window.clearTimeout(deliveryCompletionTimer);
+          deliveryCompletionTimer = window.setTimeout(() => {
+            callbacksRef.current.onDeliveryComplete?.();
+          }, 0);
+        }
+        sparks.rotation.y = time * 0.03;
+        sparks.position.y = Math.sin(time * 0.4) * 0.2;
+        renderer.render(scene, camera);
+        return;
+      }
       pizza.position.set(
         current.x + mouseX * 0.3,
         current.y - mouseY * 0.2 + Math.sin(time * 1.2) * 0.08,
@@ -420,6 +666,7 @@ export default function Scene({ flavor }) {
     return () => {
       window.cancelAnimationFrame(animationFrame);
       window.clearTimeout(resizeTimer);
+      window.clearTimeout(deliveryCompletionTimer);
       window.removeEventListener("pointermove", onPointerMove);
       window.removeEventListener("resize", resize);
       canvas.removeEventListener("webglcontextlost", onContextLost);
@@ -452,9 +699,17 @@ export default function Scene({ flavor }) {
   }, []);
 
   useEffect(() => {
-    toppingsApiRef.current?.(flavor, FL[flavor].c);
+    toppingsApiRef.current?.setToppings(flavor, FL[flavor].c);
     document.documentElement.style.setProperty("--or", FL[flavor].c);
   }, [flavor]);
+
+  useEffect(() => {
+    if (deliveryId > 0) toppingsApiRef.current?.startDelivery();
+  }, [deliveryId]);
+
+  useEffect(() => {
+    if (skipDeliveryId > 0) toppingsApiRef.current?.skipDelivery();
+  }, [skipDeliveryId]);
 
   return (
     <>

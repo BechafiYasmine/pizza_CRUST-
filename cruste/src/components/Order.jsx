@@ -1,4 +1,4 @@
-export default function Order({ cartQuantity, onPlaceOrder }) {
+export default function Order({ cartQuantity, onPlaceOrder, disabled }) {
   return (
     <section id="order">
       <div className="cta rv">
@@ -12,8 +12,8 @@ export default function Order({ cartQuantity, onPlaceOrder }) {
           <a className="btn ghost" href="#flavors">
             Choose flavors
           </a>
-          <button className="btn" onClick={onPlaceOrder}>
-            Place order
+          <button className="btn" disabled={disabled} onClick={onPlaceOrder}>
+            {disabled ? "Order in progress" : "Place order"}
           </button>
         </div>
       </div>

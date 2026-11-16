@@ -1,6 +1,11 @@
 import { FL } from "../data/flavors.js";
 
-export default function Flavors({ selectedFlavor, onSelectFlavor, onAdd }) {
+export default function Flavors({
+  selectedFlavor,
+  onSelectFlavor,
+  onAdd,
+  disabled,
+}) {
   return (
     <section id="flavors">
       <div className="right">
@@ -13,6 +18,7 @@ export default function Flavors({ selectedFlavor, onSelectFlavor, onAdd }) {
               key={flavor.n}
               className="fl"
               aria-pressed={index === selectedFlavor}
+              disabled={disabled}
               onClick={() => onSelectFlavor(index)}
             >
               <div>
@@ -24,7 +30,7 @@ export default function Flavors({ selectedFlavor, onSelectFlavor, onAdd }) {
           ))}
         </div>
         <p className="flavor-add">
-          <button className="btn" onClick={onAdd}>
+          <button className="btn" disabled={disabled} onClick={onAdd}>
             Add {FL[selectedFlavor].n}
           </button>
         </p>
