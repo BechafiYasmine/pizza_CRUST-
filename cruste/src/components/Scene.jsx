@@ -53,15 +53,17 @@ export default function Scene({
     const addToPizza = (geometry, meshMaterial, y) => {
       const mesh = new THREE.Mesh(geometry, meshMaterial);
       mesh.position.y = y;
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
       pizza.add(mesh);
       return mesh;
     };
 
-    renderer.shadowMap.enabled = false;
+    renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 0.8;
-    directionalLight.castShadow = false;
+    directionalLight.castShadow = true;
     directionalLight.shadow.mapSize.set(1024, 1024);
     directionalLight.shadow.bias = -0.0006;
     Object.assign(directionalLight.shadow.camera, {
@@ -78,75 +80,265 @@ export default function Scene({
       randomSeed = Math.sin(randomSeed) * 10000;
       return randomSeed - Math.floor(randomSeed);
     };
-    const createTextureCanvas = () => {
+    const createTextureCanvas = (size = 1024) => {
       const textureCanvas = document.createElement("canvas");
-      textureCanvas.width = textureCanvas.height = 1024;
+      textureCanvas.width = textureCanvas.height = size;
       return textureCanvas;
     };
 
     const colorCanvas = createTextureCanvas();
     const bumpCanvas = createTextureCanvas();
+    const crustCanvas = createTextureCanvas();
+    const pepperoniCanvas = createTextureCanvas(512);
+    const tomatoCanvas = createTextureCanvas(512);
+    const leafCanvas = createTextureCanvas(256);
     const colorContext = colorCanvas.getContext("2d");
     const bumpContext = bumpCanvas.getContext("2d");
-    if (!colorContext || !bumpContext) {
+    const crustContext = crustCanvas.getContext("2d");
+    const pepperoniContext = pepperoniCanvas.getContext("2d");
+    const tomatoContext = tomatoCanvas.getContext("2d");
+    const leafContext = leafCanvas.getContext("2d");
+    if (
+      !colorContext ||
+      !bumpContext ||
+      !crustContext ||
+      !pepperoniContext ||
+      !tomatoContext ||
+      !leafContext
+    ) {
       renderer.dispose();
       setError("The browser could not create the pizza texture canvases.");
       return undefined;
     }
 
-    colorContext.fillStyle = "#9c2410";
-    colorContext.fillRect(0, 0, 1024, 1024);
-    bumpContext.fillStyle = "#1c1c1c";
-    bumpContext.fillRect(0, 0, 1024, 1024);
-    const addRadialBlend = (context, x, y, radius, color) => {
-      const gradient = context.createRadialGradient(x, y, 0, x, y, radius);
-      gradient.addColorStop(0, color);
-      gradient.addColorStop(1, color.replace(/[\d.]+\)$/, "0)"));
-      context.fillStyle = gradient;
+    const drawBlob = (context, x, y, radiusX, radiusY, colors) => {
+      context.save();
+      context.translate(x, y);
+      context.scale(radiusX, radiusY);
       context.beginPath();
-      context.arc(x, y, radius, 0, 7);
+      const points = 20;
+      for (let i = 0; i < points; i += 1) {
+        const angle = (i / points) * Math.PI * 2;
+        const radius = 0.84 + random() * 0.2;
+        const pointX = Math.cos(angle) * radius;
+        const pointY = Math.sin(angle) * radius;
+        if (i === 0) context.moveTo(pointX, pointY);
+        else context.lineTo(pointX, pointY);
+      }
+      context.closePath();
+      const gradient = context.createRadialGradient(-0.2, -0.25, 0.04, 0, 0, 1.2);
+      colors.forEach(([stop, color]) => gradient.addColorStop(stop, color));
+      context.fillStyle = gradient;
       context.fill();
-    };
-    const bakeMark = (radius, color, highlight) => {
-      const angle = random() * 6.283;
-      const distance = Math.sqrt(random()) * 470;
-      const x = 512 + Math.cos(angle) * distance;
-      const y = 512 + Math.sin(angle) * distance;
-      addRadialBlend(colorContext, x, y, radius, color);
-      if (highlight) addRadialBlend(bumpContext, x, y, radius, highlight);
+      context.restore();
     };
 
-    for (let i = 0; i < 50; i += 1) bakeMark(60, "rgba(110,18,6,.5)");
+    colorContext.fillStyle = "#c94724";
+    colorContext.fillRect(0, 0, 1024, 1024);
+    const sauceWash = colorContext.createRadialGradient(440, 390, 40, 510, 520, 600);
+    sauceWash.addColorStop(0, "rgba(244,111,55,.52)");
+    sauceWash.addColorStop(0.72, "rgba(171,43,23,.16)");
+    sauceWash.addColorStop(1, "rgba(87,25,15,.3)");
+    colorContext.fillStyle = sauceWash;
+    colorContext.fillRect(0, 0, 1024, 1024);
+    bumpContext.fillStyle = "#888888";
+    bumpContext.fillRect(0, 0, 1024, 1024);
     for (let i = 0; i < 115; i += 1) {
-      bakeMark(
-        40 + random() * 55,
-        random() > 0.5 ? "rgba(232,158,56,.9)" : "rgba(212,128,38,.9)",
-        "rgba(255,255,255,.55)",
+      const angle = random() * Math.PI * 2;
+      const distance = Math.sqrt(random()) * 440;
+      drawBlob(
+        colorContext,
+        512 + Math.cos(angle) * distance,
+        512 + Math.sin(angle) * distance,
+        12 + random() * 45,
+        10 + random() * 36,
+        [
+          [0, "rgba(245,126,64,.55)"],
+          [0.58, "rgba(166,36,19,.28)"],
+          [1, "rgba(89,22,14,.32)"],
+        ],
       );
     }
-    for (let i = 0; i < 60; i += 1) {
-      bakeMark(18 + random() * 34, "rgba(244,200,116,.5)", "rgba(255,255,255,.4)");
+    for (let i = 0; i < 72; i += 1) {
+      const angle = random() * Math.PI * 2;
+      const distance = Math.sqrt(random()) * 420;
+      drawBlob(
+        colorContext,
+        512 + Math.cos(angle) * distance,
+        512 + Math.sin(angle) * distance,
+        28 + random() * 48,
+        22 + random() * 44,
+        [
+          [0, "rgba(255,247,216,.98)"],
+          [0.58, "rgba(247,220,157,.98)"],
+          [1, "rgba(221,168,93,.92)"],
+        ],
+      );
     }
-    for (let i = 0; i < 55; i += 1) bakeMark(8 + random() * 16, "rgba(138,62,16,.6)");
-    for (let i = 0; i < 80; i += 1) bakeMark(7 + random() * 14, "rgba(255,105,28,.5)");
-    colorContext.strokeStyle = "rgba(160,34,12,.85)";
-    colorContext.lineWidth = 46;
-    colorContext.beginPath();
-    colorContext.arc(512, 512, 505, 0, 7);
-    colorContext.stroke();
+    for (let i = 0; i < 145; i += 1) {
+      const angle = random() * Math.PI * 2;
+      const distance = Math.sqrt(random()) * 430;
+      const x = 512 + Math.cos(angle) * distance;
+      const y = 512 + Math.sin(angle) * distance;
+      const radius = 2 + random() * 9;
+      colorContext.fillStyle =
+        random() > 0.45 ? "rgba(255,193,78,.75)" : "rgba(132,43,21,.58)";
+      colorContext.beginPath();
+      colorContext.ellipse(x, y, radius * 1.45, radius, random() * 6, 0, Math.PI * 2);
+      colorContext.fill();
+      bumpContext.fillStyle = random() > 0.45 ? "#d9d9d9" : "#404040";
+      bumpContext.beginPath();
+      bumpContext.ellipse(x, y, radius * 1.8, radius * 1.3, 0, 0, Math.PI * 2);
+      bumpContext.fill();
+    }
+
+    const crustGradient = crustContext.createLinearGradient(0, 0, 0, 1024);
+    crustGradient.addColorStop(0, "#f2c77d");
+    crustGradient.addColorStop(0.36, "#d99545");
+    crustGradient.addColorStop(0.68, "#f0bd69");
+    crustGradient.addColorStop(1, "#b86c32");
+    crustContext.fillStyle = crustGradient;
+    crustContext.fillRect(0, 0, 1024, 1024);
+    for (let i = 0; i < 260; i += 1) {
+      const x = random() * 1024;
+      const y = random() * 1024;
+      const radius = 5 + random() * 31;
+      const blister = crustContext.createRadialGradient(x, y, 1, x, y, radius);
+      blister.addColorStop(
+        0,
+        random() > 0.34 ? "rgba(104,47,19,.7)" : "rgba(255,229,165,.68)",
+      );
+      blister.addColorStop(0.42, "rgba(178,93,35,.28)");
+      blister.addColorStop(1, "rgba(218,151,73,0)");
+      crustContext.fillStyle = blister;
+      crustContext.beginPath();
+      crustContext.ellipse(
+        x,
+        y,
+        radius * (0.8 + random() * 0.7),
+        radius,
+        random() * 6,
+        0,
+        Math.PI * 2,
+      );
+      crustContext.fill();
+    }
+    for (let i = 0; i < 1400; i += 1) {
+      const radius = 0.5 + random() * 2;
+      crustContext.fillStyle =
+        random() > 0.5 ? "rgba(105,56,28,.42)" : "rgba(255,238,192,.5)";
+      crustContext.fillRect(random() * 1024, random() * 1024, radius * 2, radius);
+    }
+
+    const makeIngredientCanvas = (context, size, base, inner, edge) => {
+      const gradient = context.createRadialGradient(
+        size * 0.38,
+        size * 0.32,
+        size * 0.03,
+        size * 0.5,
+        size * 0.5,
+        size * 0.62,
+      );
+      gradient.addColorStop(0, inner);
+      gradient.addColorStop(0.75, base);
+      gradient.addColorStop(1, edge);
+      context.fillStyle = gradient;
+      context.fillRect(0, 0, size, size);
+    };
+    makeIngredientCanvas(pepperoniContext, 512, "#ae2518", "#e25336", "#68170f");
+    pepperoniContext.strokeStyle = "rgba(90,20,13,.8)";
+    pepperoniContext.lineWidth = 18;
+    pepperoniContext.beginPath();
+    pepperoniContext.arc(256, 256, 246, 0, Math.PI * 2);
+    pepperoniContext.stroke();
+    for (let i = 0; i < 115; i += 1) {
+      const angle = random() * Math.PI * 2;
+      const distance = Math.sqrt(random()) * 218;
+      const x = 256 + Math.cos(angle) * distance;
+      const y = 256 + Math.sin(angle) * distance;
+      const radius = 2 + random() * 9;
+      pepperoniContext.fillStyle =
+        random() > 0.5 ? "rgba(255,184,100,.46)" : "rgba(75,14,10,.63)";
+      pepperoniContext.beginPath();
+      pepperoniContext.ellipse(x, y, radius * 1.3, radius, random() * 6, 0, Math.PI * 2);
+      pepperoniContext.fill();
+    }
+
+    makeIngredientCanvas(tomatoContext, 512, "#e33a24", "#ff9b61", "#a61d16");
+    tomatoContext.strokeStyle = "rgba(255,202,128,.86)";
+    tomatoContext.lineWidth = 15;
+    tomatoContext.beginPath();
+    tomatoContext.arc(256, 256, 246, 0, Math.PI * 2);
+    tomatoContext.stroke();
+    tomatoContext.strokeStyle = "rgba(255,206,131,.92)";
+    tomatoContext.lineWidth = 9;
+    for (let i = 0; i < 7; i += 1) {
+      const angle = (i / 7) * Math.PI * 2;
+      const x = 256 + Math.cos(angle) * 112;
+      const y = 256 + Math.sin(angle) * 112;
+      tomatoContext.beginPath();
+      tomatoContext.ellipse(x, y, 46, 26, angle, 0, Math.PI * 2);
+      tomatoContext.stroke();
+      for (let j = 0; j < 3; j += 1) {
+        const seedX = x + Math.cos(angle + j * 0.8) * (13 + j * 7);
+        const seedY = y + Math.sin(angle + j * 0.8) * (8 + j * 4);
+        tomatoContext.fillStyle = "rgba(255,230,174,.96)";
+        tomatoContext.beginPath();
+        tomatoContext.ellipse(seedX, seedY, 5, 11, angle, 0, Math.PI * 2);
+        tomatoContext.fill();
+      }
+    }
+
+    const leafGradient = leafContext.createLinearGradient(0, 0, 256, 0);
+    leafGradient.addColorStop(0, "#15562b");
+    leafGradient.addColorStop(0.48, "#62a83e");
+    leafGradient.addColorStop(1, "#174c25");
+    leafContext.fillStyle = leafGradient;
+    leafContext.fillRect(0, 0, 256, 256);
+    leafContext.strokeStyle = "rgba(205,226,126,.86)";
+    leafContext.lineWidth = 5;
+    leafContext.beginPath();
+    leafContext.moveTo(128, 12);
+    leafContext.quadraticCurveTo(121, 126, 128, 244);
+    leafContext.stroke();
+    leafContext.lineWidth = 2;
+    for (let i = 1; i < 8; i += 1) {
+      const y = 24 + i * 28;
+      const spread = Math.sin((i / 9) * Math.PI) * 93;
+      leafContext.beginPath();
+      leafContext.moveTo(128, y);
+      leafContext.quadraticCurveTo(128 - spread * 0.5, y - 9, 128 - spread, y - 20);
+      leafContext.moveTo(128, y);
+      leafContext.quadraticCurveTo(128 + spread * 0.5, y + 9, 128 + spread, y + 20);
+      leafContext.stroke();
+    }
 
     const colorTexture = new THREE.CanvasTexture(colorCanvas);
     const bumpTexture = new THREE.CanvasTexture(bumpCanvas);
-    colorTexture.anisotropy = 8;
+    const crustTexture = new THREE.CanvasTexture(crustCanvas);
+    const pepperoniTexture = new THREE.CanvasTexture(pepperoniCanvas);
+    const tomatoTexture = new THREE.CanvasTexture(tomatoCanvas);
+    const leafTexture = new THREE.CanvasTexture(leafCanvas);
+    [
+      colorTexture,
+      bumpTexture,
+      crustTexture,
+      pepperoniTexture,
+      tomatoTexture,
+      leafTexture,
+    ].forEach((texture) => {
+      texture.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
+    });
     const cheeseGeometry = new THREE.CircleGeometry(1.42, 96);
     cheeseGeometry.rotateX(-Math.PI / 2);
     const cheese = new THREE.Mesh(
       cheeseGeometry,
       new THREE.MeshStandardMaterial({
         map: colorTexture,
-        bumpScale: 0,
-        roughness: 0.45,
-        metalness: 0.05,
+        bumpMap: bumpTexture,
+        bumpScale: 0.045,
+        roughness: 0.52,
+        metalness: 0.015,
       }),
     );
     cheese.position.y = 0.19;
@@ -154,7 +346,7 @@ export default function Scene({
     pizza.add(cheese);
     addToPizza(new THREE.CylinderGeometry(1.5, 1.55, 0.2, 64), material(0xd4a05a, 0.8), 0.05);
 
-    const crustGeometry = new THREE.TorusGeometry(1.55, 0.23, 28, 110);
+    const crustGeometry = new THREE.TorusGeometry(1.55, 0.23, 40, 180);
     const crustPositions = crustGeometry.attributes.position;
     const crustColors = new Float32Array(crustPositions.count * 3);
     for (let i = 0; i < crustPositions.count; i += 1) {
@@ -163,20 +355,21 @@ export default function Scene({
       const z = crustPositions.getZ(i);
       const angle = Math.atan2(y, x);
       const noise =
-        Math.sin(angle * 7) * 0.014 +
-        Math.sin(angle * 19 + 1) * 0.01 +
-        Math.sin(angle * 43) * 0.004;
+        Math.sin(angle * 7) * 0.018 +
+        Math.sin(angle * 19 + 1) * 0.012 +
+        Math.sin(angle * 43) * 0.006 +
+        Math.sin(angle * 73 + z * 24) * 0.003;
       const scale = 1 + noise;
       crustPositions.setXYZ(i, x * scale, y * scale, z * (1 + noise * 2.2));
       const blend = Math.max(0, Math.min(1, z / 0.23));
-      const color = new THREE.Color(0xc98a3e).lerp(
-        new THREE.Color(0x8e4c18),
-        blend * 0.95,
+      const color = new THREE.Color(0xf6dfb6).lerp(
+        new THREE.Color(0xc38a54),
+        blend * 0.45,
       );
       const char = Math.sin(angle * 37) * Math.sin(angle * 13 + z * 18) +
         Math.sin(angle * 71 + 3) * 0.4;
       if (char > 0.7 && z > 0) {
-        color.lerp(new THREE.Color(0x45200b), Math.min(1, (char - 0.7) * 3));
+        color.lerp(new THREE.Color(0x70401f), Math.min(0.78, (char - 0.7) * 2.2));
       }
       color.toArray(crustColors, i * 3);
     }
@@ -184,7 +377,13 @@ export default function Scene({
     crustGeometry.computeVertexNormals();
     const crust = addToPizza(
       crustGeometry,
-      new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.8 }),
+      new THREE.MeshStandardMaterial({
+        map: crustTexture,
+        vertexColors: true,
+        roughness: 0.78,
+        bumpMap: bumpTexture,
+        bumpScale: 0.025,
+      }),
       0.12,
     );
     crust.rotation.x = Math.PI / 2;
@@ -208,44 +407,89 @@ export default function Scene({
     leafGeometry.rotateX(-Math.PI / 2);
     leafGeometry.scale(1.25, 1.25, 1.25);
     leafGeometry.computeVertexNormals();
-    const pepperoniGeometry = new THREE.LatheGeometry(
-      [
-        [0, 0],
-        [0.1, 0.003],
-        [0.18, 0.015],
-        [0.24, 0.05],
-        [0.255, 0.08],
-        [0.225, 0.075],
-        [0.17, 0.04],
-        [0.1, 0.026],
-        [0, 0.022],
-      ].map(([radius, height]) => new THREE.Vector2(radius, height)),
-      28,
-    );
+    const pepperoniGeometry = new THREE.CylinderGeometry(0.205, 0.205, 0.048, 40);
+    const tomatoGeometry = new THREE.CylinderGeometry(0.2, 0.2, 0.042, 40);
+    const mushroomCapGeometry = new THREE.SphereGeometry(1, 20, 12);
+    const mushroomStemGeometry = new THREE.CylinderGeometry(0.045, 0.07, 0.15, 14);
     const toppings = new THREE.Group();
     pizza.add(toppings);
     const toppingGeometry = {
       pep: pepperoniGeometry,
       leaf: leafGeometry,
-      sph: new THREE.SphereGeometry(0.2, 12, 8),
-      mush: new THREE.CylinderGeometry(0.22, 0.12, 0.09, 16),
-      tom: new THREE.CylinderGeometry(0.2, 0.2, 0.04, 20),
+      sph: new THREE.SphereGeometry(0.2, 20, 14),
+      mush: mushroomCapGeometry,
+      tom: tomatoGeometry,
       ring: new THREE.TorusGeometry(0.08, 0.035, 8, 16),
       chili: new THREE.TorusGeometry(0.07, 0.026, 8, 16),
     };
     const toppingMaterial = {
-      pep: material(0x9a2016, 0.4),
+      pep: [
+        new THREE.MeshStandardMaterial({
+          map: pepperoniTexture,
+          roughness: 0.43,
+          metalness: 0.02,
+          bumpMap: bumpTexture,
+          bumpScale: 0.012,
+        }),
+        material(0x8b2418, 0.5),
+        material(0x8b2418, 0.5),
+      ],
       basil: new THREE.MeshStandardMaterial({
-        color: 0x2c7a30,
-        roughness: 0.55,
+        map: leafTexture,
+        color: 0xffffff,
+        roughness: 0.72,
+        bumpMap: leafTexture,
+        bumpScale: 0.012,
         side: THREE.DoubleSide,
       }),
-      moz: material(0xe9e2d2, 0.45),
-      mush: material(0xe2cda6),
-      tom: material(0xe8452c, 0.4),
+      moz: material(0xfff0d3, 0.32),
+      mush: material(0xd7bd91, 0.72),
+      mushStem: material(0xf1dfbd, 0.72),
+      tom: [
+        new THREE.MeshStandardMaterial({
+          map: tomatoTexture,
+          roughness: 0.44,
+          bumpMap: bumpTexture,
+          bumpScale: 0.01,
+        }),
+        material(0xbd3924, 0.56),
+        material(0xbd3924, 0.56),
+      ],
       olive: material(0x1c1a1a, 0.4),
       chili: material(0xff2d2d, 0.4),
     };
+    const floatingIngredients = new THREE.Group();
+    pizza.add(floatingIngredients);
+    const floatingIngredientItems = [];
+    [
+      { kind: "leaf", x: -1.78, z: -0.5, scale: 1.2, rotation: 0.55 },
+      { kind: "tomato", x: -1.18, z: -1.62, scale: 0.65, rotation: 0.2 },
+      { kind: "leaf", x: 1.7, z: -0.98, scale: 0.9, rotation: -0.7 },
+      { kind: "leaf", x: 1.6, z: 1.0, scale: 1.05, rotation: 0.9 },
+      { kind: "tomato", x: 0.82, z: 1.78, scale: 0.72, rotation: -0.35 },
+      { kind: "leaf", x: -1.64, z: 1.02, scale: 0.82, rotation: -0.9 },
+    ].forEach((item, index) => {
+      const leaf = item.kind === "leaf";
+      const ingredient = new THREE.Mesh(
+        leaf ? leafGeometry : tomatoGeometry,
+        leaf ? toppingMaterial.basil : toppingMaterial.tom,
+      );
+      ingredient.position.set(item.x, 0.23 + index * 0.018, item.z);
+      ingredient.rotation.set(
+        leaf ? -0.16 : 0,
+        item.rotation,
+        leaf ? Math.sin(index) * 0.22 : 0,
+      );
+      ingredient.scale.setScalar(item.scale);
+      ingredient.castShadow = true;
+      floatingIngredients.add(ingredient);
+      floatingIngredientItems.push({
+        mesh: ingredient,
+        baseY: ingredient.position.y,
+        phase: index * 1.13,
+        kind: item.kind,
+      });
+    });
     let toppingStart = 0;
     let flavorKick = 0;
 
@@ -276,6 +520,18 @@ export default function Scene({
           } else if (kind === "chili") {
             topping = new THREE.Mesh(toppingGeometry.chili, toppingMaterial.chili);
             topping.rotation.x = Math.PI / 2;
+            topping.userData.scale = [1, 1, 1];
+          } else if (kind === "mush") {
+            topping = new THREE.Group();
+            const cap = new THREE.Mesh(toppingGeometry.mush, toppingMaterial.mush);
+            cap.scale.set(0.22, 0.095, 0.22);
+            cap.position.y = 0.075;
+            const stem = new THREE.Mesh(
+              mushroomStemGeometry,
+              toppingMaterial.mushStem,
+            );
+            stem.position.y = 0.005;
+            topping.add(cap, stem);
             topping.userData.scale = [1, 1, 1];
           } else {
             topping = new THREE.Mesh(toppingGeometry[kind], toppingMaterial[kind]);
@@ -426,6 +682,7 @@ export default function Scene({
       oven.visible = false;
       scooter.visible = false;
       pizza.visible = true;
+      floatingIngredients.visible = true;
     };
     const finishDelivery = () => {
       window.clearTimeout(deliveryCompletionTimer);
@@ -457,6 +714,7 @@ export default function Scene({
       oven.visible = true;
       scooter.visible = false;
       pizza.visible = true;
+      floatingIngredients.visible = false;
       notifyDeliveryPhase("to-oven");
     };
     const skipDelivery = () => {
@@ -555,6 +813,7 @@ export default function Scene({
           const progress = ease(elapsed / 1.55);
           notifyDeliveryPhase("to-oven");
           pizza.visible = true;
+          floatingIngredients.visible = false;
           oven.visible = true;
           scooter.visible = false;
           pizza.position.set(
@@ -577,6 +836,7 @@ export default function Scene({
         } else if (elapsed < 3.75) {
           notifyDeliveryPhase("baking");
           pizza.visible = false;
+          floatingIngredients.visible = false;
           oven.visible = true;
           scooter.visible = false;
           ovenFireMaterial.opacity = 0.63 + Math.sin(time * 8) * 0.2;
@@ -584,6 +844,7 @@ export default function Scene({
         } else if (elapsed < 4.65) {
           notifyDeliveryPhase("pickup");
           pizza.visible = false;
+          floatingIngredients.visible = false;
           oven.visible = true;
           scooter.visible = true;
           scooter.position.set(
@@ -598,6 +859,7 @@ export default function Scene({
           oven.visible = false;
           scooter.visible = true;
           pizza.visible = true;
+          floatingIngredients.visible = false;
           const progress = ease((elapsed - 4.65) / 2.4);
           scooter.position.set(
             pickupEndX + (worldHalfWidth + 2.1 - pickupEndX) * progress,
@@ -650,6 +912,11 @@ export default function Scene({
         const scale = progress <= 0 ? 0 : bounce;
         const [x, y, z] = topping.userData.scale;
         topping.scale.set(x * scale, y * scale, z * scale);
+      });
+      floatingIngredientItems.forEach(({ mesh, baseY, phase, kind }) => {
+        mesh.position.y =
+          baseY + Math.sin(time * 1.7 + phase) * (kind === "leaf" ? 0.08 : 0.055);
+        mesh.rotation.y += kind === "leaf" ? 0.003 : -0.002;
       });
       sparks.rotation.y = time * 0.03;
       sparks.position.y = Math.sin(time * 0.4) * 0.2;

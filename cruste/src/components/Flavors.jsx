@@ -25,7 +25,7 @@ export default function Flavors({
                 <b>{flavor.n}</b>
                 <span>{flavor.d}</span>
               </div>
-              <i>${flavor.p}</i>
+              <i>{flavor.p} DA</i>
             </button>
           ))}
         </div>
